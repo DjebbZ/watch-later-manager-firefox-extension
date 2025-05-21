@@ -12,7 +12,7 @@
   ],
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/playlist?list=WL"],
+      "matches": ["*://*.youtube.com/playlist?list=WL*"],
       "js": ["watch-later-manager.js"],
       "css": ["watch-later-manager.css"]
     }

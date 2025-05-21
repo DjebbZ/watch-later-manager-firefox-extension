@@ -1,237 +1,291 @@
-(function() {
-    'use strict';
+console.log("YouTube Watch Later Manager loaded");
 
-    // Configuration
-    const POLL_INTERVAL = 1000; // Check for new videos every second
-    const CONTROL_PANEL_ID = 'yt-wl-manager-controls';
-    const CHECKBOX_CLASS = 'yt-wl-checkbox';
+const CONTROLS_CONTAINER_ID = 'yt-wlm-controls-container';
+const VIDEO_ROW_SELECTOR = 'ytd-playlist-video-renderer'; // This is the element for each video in the list
+const MENU_BUTTON_SELECTOR = 'yt-icon-button.ytd-menu-renderer'; // The three-dots menu button
+const REMOVE_MENU_ITEM_TEXT_WL = "Remove from Watch later"; // Text for "Remove from Watch later"
+const REMOVE_MENU_ITEM_TEXT_PLAYLIST = "Remove from"; // Fallback if it's generic playlist remove
+// Sometimes the text is just "Remove from" and then the playlist name
+// We need to be careful with this selector. YouTube often uses complex structures.
+// A more robust selector might be: ytd-menu-service-item-renderer that contains a specific icon or text.
+// For Watch Later, it's usually "Remove from Watch later"
+// The selector for the menu item can be:
+// 'ytd-menu-service-item-renderer yt-formatted-string' that contains the specific text.
 
-    // State
-    let selectedVideos = new Set();
-    let videoElements = [];
-    let controlPanel;
+let observer;
 
-    // Create needed elements
-    function createControlPanel() {
-        if (document.getElementById(CONTROL_PANEL_ID)) return;
+function createCheckbox(videoElement) {
+    const existingCheckbox = videoElement.querySelector('.yt-wlm-checkbox');
+    if (existingCheckbox) return; // Already added
 
-        controlPanel = document.createElement('div');
-        controlPanel.id = CONTROL_PANEL_ID;
+    const checkboxContainer = document.createElement('div');
+    checkboxContainer.className = 'yt-wlm-checkbox-container';
+    // Stop propagation to prevent video click when interacting with checkbox area
+    checkboxContainer.addEventListener('click', (e) => e.stopPropagation());
 
-        const selectAllBtn = document.createElement('button');
-        selectAllBtn.textContent = 'Select All';
-        selectAllBtn.className = 'yt-wl-btn';
-        selectAllBtn.addEventListener('click', selectAll);
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'yt-wlm-checkbox';
+    checkbox.addEventListener('click', (e) => {
+        // Stop propagation to prevent video click when clicking checkbox itself
+        e.stopPropagation();
+        // We can add logic here if needed when a single checkbox state changes
+    });
 
-        const deselectAllBtn = document.createElement('button');
-        deselectAllBtn.textContent = 'Deselect All';
-        deselectAllBtn.className = 'yt-wl-btn';
-        deselectAllBtn.addEventListener('click', deselectAll);
+    checkboxContainer.appendChild(checkbox);
+    // Prepend the checkbox container to the videoElement
+    videoElement.prepend(checkboxContainer);
+}
 
-        const removeSelectedBtn = document.createElement('button');
-        removeSelectedBtn.textContent = 'Remove Selected from Watch Later';
-        removeSelectedBtn.className = 'yt-wl-btn yt-wl-remove-btn';
-        removeSelectedBtn.addEventListener('click', removeSelected);
+function addCheckboxesToVisibleVideos() {
+    const videoElements = document.querySelectorAll(VIDEO_ROW_SELECTOR);
+    videoElements.forEach(videoEl => {
+        // Ensure we are not adding to the "ghost" or placeholder items
+        if (videoEl.hasAttribute('is-ghost')) return;
+        createCheckbox(videoEl);
+    });
+}
 
-        const selectedCount = document.createElement('span');
-        selectedCount.id = 'yt-wl-selected-count';
-        selectedCount.textContent = '0 videos selected';
+function createControls(playlistHeaderElement) { // Accepts the header element as a parameter
+    if (document.getElementById(CONTROLS_CONTAINER_ID)) return; // Controls already exist
 
-        controlPanel.appendChild(selectAllBtn);
-        controlPanel.appendChild(deselectAllBtn);
-        controlPanel.appendChild(removeSelectedBtn);
-        controlPanel.appendChild(selectedCount);
+    const controlsContainer = document.createElement('div');
+    controlsContainer.id = CONTROLS_CONTAINER_ID;
+    controlsContainer.className = 'yt-wlm-controls-container';
 
-        // Insert the control panel on the right side of the page
-        // Target the container that holds the playlist sorting options
-        const actionsContainer = document.querySelector('ytd-playlist-header-renderer #menu-container');
-        if (actionsContainer) {
-            // Create a container that will hold our controls and maintain the layout
-            const controlsContainer = document.createElement('div');
-            controlsContainer.className = 'yt-wl-controls-container';
-            controlsContainer.appendChild(controlPanel);
+    const selectAllButton = document.createElement('button');
+    selectAllButton.id = 'yt-wlm-select-all';
+    selectAllButton.textContent = 'Select All';
+    selectAllButton.addEventListener('click', () => {
+        document.querySelectorAll(`${VIDEO_ROW_SELECTOR} .yt-wlm-checkbox`).forEach(cb => cb.checked = true);
+    });
 
-            // Insert before the sorting options
-            actionsContainer.parentNode.insertBefore(controlsContainer, actionsContainer);
+    const deselectAllButton = document.createElement('button');
+    deselectAllButton.id = 'yt-wlm-deselect-all';
+    deselectAllButton.textContent = 'Deselect All';
+    deselectAllButton.addEventListener('click', () => {
+        document.querySelectorAll(`${VIDEO_ROW_SELECTOR} .yt-wlm-checkbox`).forEach(cb => cb.checked = false);
+    });
+
+    const removeSelectedButton = document.createElement('button');
+    removeSelectedButton.id = 'yt-wlm-remove-selected';
+    removeSelectedButton.textContent = 'Remove Selected from Watch Later';
+    removeSelectedButton.addEventListener('click', handleRemoveSelected);
+
+    controlsContainer.appendChild(selectAllButton);
+    controlsContainer.appendChild(deselectAllButton);
+    controlsContainer.appendChild(removeSelectedButton);
+
+    // Inject controls into the passed playlistHeaderElement
+    if (playlistHeaderElement) {
+        // Try to insert after the #meta element (which usually shows video count, last updated)
+        // or after #primary-info-renderer if that's more suitable/available.
+        const metaElement = playlistHeaderElement.querySelector('#meta.ytd-playlist-header-renderer, #primary-info-renderer');
+
+        if (metaElement && metaElement.parentNode) { // Check parentNode for safety
+            // Insert after the meta/primary-info element
+            if (metaElement.nextSibling) {
+                metaElement.parentNode.insertBefore(controlsContainer, metaElement.nextSibling);
+            } else {
+                metaElement.parentNode.appendChild(controlsContainer);
+            }
         } else {
-            // Fallback to the playlist header
-            const playlistHeader = document.querySelector('ytd-playlist-header-renderer');
-            if (playlistHeader) {
-                playlistHeader.appendChild(controlPanel);
-            } else {
-                document.body.insertBefore(controlPanel, document.body.firstChild);
+            // Fallback: if a specific inner element isn't found, append to the header as a last resort.
+            // This is often visually acceptable, placing it below other header content.
+            console.warn("Watch Later Manager: Could not find specific anchor (#meta or #primary-info-renderer) in playlist header. Appending controls to header.");
+            playlistHeaderElement.appendChild(controlsContainer);
+        }
+    } else {
+        // This 'else' branch should ideally not be reached if initialize passes a valid playlistHeaderElement.
+        console.warn("Watch Later Manager: Playlist header element was unexpectedly null in createControls.");
+        const primaryContents = document.querySelector('#primary #contents'); // Fallback from original code
+        if (primaryContents) {
+            primaryContents.prepend(controlsContainer);
+        } else {
+            console.error("Watch Later Manager: Could not find a suitable place to inject controls.");
+        }
+    }
+}
+async function handleRemoveSelected() {
+    const checkedCheckboxes = Array.from(document.querySelectorAll(`${VIDEO_ROW_SELECTOR} .yt-wlm-checkbox:checked`));
+    if (checkedCheckboxes.length === 0) {
+        alert("No videos selected.");
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to remove ${checkedCheckboxes.length} video(s) from Watch Later?`)) {
+        return;
+    }
+
+    const originalButtonText = this.textContent;
+    this.textContent = `Removing ${checkedCheckboxes.length} videos... (0%)`;
+    this.disabled = true;
+
+    let removedCount = 0;
+    for (let i = 0; i < checkedCheckboxes.length; i++) {
+        const checkbox = checkedCheckboxes[i];
+        const videoElement = checkbox.closest(VIDEO_ROW_SELECTOR);
+        if (!videoElement) continue;
+
+        // 1. Click the three-dots menu button
+        const menuButton = videoElement.querySelector(MENU_BUTTON_SELECTOR);
+        if (!menuButton) {
+            console.error("Could not find menu button for a video.", videoElement);
+            continue;
+        }
+        menuButton.click();
+
+        // 2. Wait for the menu to appear and find the "Remove from Watch later" option
+        // YouTube menus are added to the body, not inside the video element directly.
+        await new Promise(resolve => setTimeout(resolve, 250)); // Wait for menu to open
+
+        let removeMenuItem = null;
+        const menuItems = document.querySelectorAll('ytd-menu-service-item-renderer yt-formatted-string');
+        for (const item of menuItems) {
+            const itemText = item.textContent.trim();
+            if (itemText === REMOVE_MENU_ITEM_TEXT_WL || (itemText.startsWith(REMOVE_MENU_ITEM_TEXT_PLAYLIST) && itemText.includes("Watch later"))) {
+                removeMenuItem = item.closest('ytd-menu-service-item-renderer');
+                break;
             }
         }
-    }
 
-    // Add checkbox to a video
-    function addCheckboxToVideo(videoElement) {
-        if (videoElement.querySelector(`.${CHECKBOX_CLASS}`)) return;
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = CHECKBOX_CLASS;
-        checkbox.addEventListener('change', function(e) {
-            // Stop event propagation to prevent triggering video click
-            e.stopPropagation();
-
-            const videoId = getVideoIdFromElement(videoElement);
-            if (this.checked) {
-                selectedVideos.add(videoId);
-            } else {
-                selectedVideos.delete(videoId);
-            }
-            updateSelectedCount();
-        });
-
-        // Insert checkbox next to the video title instead of on the thumbnail
-        const videoInfo = videoElement.querySelector('#meta');
-        if (videoInfo) {
-            const checkboxContainer = document.createElement('div');
-            checkboxContainer.className = 'yt-wl-checkbox-container';
-            checkboxContainer.appendChild(checkbox);
-
-            // Insert at the beginning of the meta information
-            videoInfo.insertBefore(checkboxContainer, videoInfo.firstChild);
-        }
-    }
-
-    // Get video ID from a video element
-    function getVideoIdFromElement(videoElement) {
-        const link = videoElement.querySelector('a#thumbnail');
-        if (link && link.href) {
-            const match = link.href.match(/v=([^&]+)/);
-            return match ? match[1] : null;
-        }
-        return null;
-    }
-
-    // Get all video elements
-    function findVideoElements() {
-        return Array.from(document.querySelectorAll('ytd-playlist-video-renderer'));
-    }
-
-    // Process all videos
-    function processVideos() {
-        videoElements = findVideoElements();
-        videoElements.forEach(addCheckboxToVideo);
-    }
-
-    // Select all videos
-    function selectAll() {
-        videoElements.forEach(video => {
-            const checkbox = video.querySelector(`.${CHECKBOX_CLASS}`);
-            if (checkbox) {
-                checkbox.checked = true;
-                const videoId = getVideoIdFromElement(video);
-                if (videoId) selectedVideos.add(videoId);
-            }
-        });
-        updateSelectedCount();
-    }
-
-    // Deselect all videos
-    function deselectAll() {
-        videoElements.forEach(video => {
-            const checkbox = video.querySelector(`.${CHECKBOX_CLASS}`);
-            if (checkbox) checkbox.checked = false;
-        });
-        selectedVideos.clear();
-        updateSelectedCount();
-    }
-
-    // Update selected count display
-    function updateSelectedCount() {
-        const countElement = document.getElementById('yt-wl-selected-count');
-        if (countElement) {
-            countElement.textContent = `${selectedVideos.size} video${selectedVideos.size !== 1 ? 's' : ''} selected`;
-        }
-    }
-
-    // Remove selected videos
-    function removeSelected() {
-        if (selectedVideos.size === 0) {
-            alert('No videos selected for removal');
-            return;
-        }
-
-        if (!confirm(`Remove ${selectedVideos.size} video${selectedVideos.size !== 1 ? 's' : ''} from Watch Later?`)) {
-            return;
-        }
-
-        let removedCount = 0;
-
-        // For each selected video, find and click its menu button, then the "Remove from Watch Later" option
-        videoElements.forEach(video => {
-            const videoId = getVideoIdFromElement(video);
-
-            if (selectedVideos.has(videoId)) {
-                // Click the menu button to open options
-                const menuButton = video.querySelector('ytd-menu-renderer yt-icon-button#button');
-                if (menuButton) {
-                    menuButton.click();
-
-                    // Need to wait for menu to appear
-                    setTimeout(() => {
-                        // Find "Remove from Watch Later" option in the dropdown menu
-                        const menuItems = document.querySelectorAll('ytd-menu-service-item-renderer');
-
-                        for (const item of menuItems) {
-                            if (item.textContent.includes('Remove from Watch Later')) {
-                                item.click();
-                                removedCount++;
-                                break;
-                            }
-                        }
-
-                        // Click elsewhere to close menu if needed
-                        if (document.body) document.body.click();
-                    }, 100);
+        if (!removeMenuItem) {
+            // Fallback for a more generic "Remove from [Playlist Name]" if specific WL text isn't found
+            for (const item of menuItems) {
+                const itemText = item.textContent.trim();
+                if (itemText.startsWith(REMOVE_MENU_ITEM_TEXT_PLAYLIST)) {
+                    // Check if parent ytd-menu-popup-renderer has an aria-label indicating it's for the video
+                    const popup = item.closest('ytd-menu-popup-renderer');
+                    // This check is not perfect but might help
+                    if (popup && videoElement.contains(popup.trigger || document.activeElement)) {
+                        removeMenuItem = item.closest('ytd-menu-service-item-renderer');
+                        break;
+                    }
                 }
             }
-        });
-
-        // Clear selection after removal
-        setTimeout(() => {
-            deselectAll();
-            alert(`Attempted to remove ${removedCount} videos from Watch Later`);
-        }, selectedVideos.size * 150);
-    }
-
-    // Initialize extension
-    function init() {
-        createControlPanel();
-        processVideos();
-
-        // Set up observer for dynamic content
-        const observer = new MutationObserver(() => {
-            processVideos();
-        });
-
-        // Watch for changes in the main content area
-        const contentArea = document.querySelector('#contents');
-        if (contentArea) {
-            observer.observe(contentArea, { childList: true, subtree: true });
         }
 
-        // Also poll for changes as a fallback
-        setInterval(processVideos, POLL_INTERVAL);
-    }
 
-    // Check if we're on the Watch Later page
-    function isWatchLaterPage() {
-        const url = window.location.href;
-        return url.includes('youtube.com/playlist?list=WL');
-    }
+        if (removeMenuItem) {
+            removeMenuItem.click();
+            removedCount++;
+            // Update button text with progress
+            const progress = Math.round(((i + 1) / checkedCheckboxes.length) * 100);
+            this.textContent = `Removing ${checkedCheckboxes.length} videos... (${progress}%)`;
 
-    // Start when YouTube is fully loaded
-    function startWhenReady() {
-        if (document.readyState === 'complete' && isWatchLaterPage()) {
-            init();
+            // Wait a bit for YouTube to process the removal before the next one
+            // and for the element to be removed from DOM to avoid issues.
+            await new Promise(resolve => setTimeout(resolve, 500));
         } else {
-            setTimeout(startWhenReady, 500);
+            console.error("Could not find 'Remove from Watch later' menu item.", menuItems);
+            // Attempt to close the menu if open by clicking outside (e.g., body)
+            // This is a bit hacky, ideally we'd find a close button or press Escape
+            document.body.click();
+            await new Promise(resolve => setTimeout(resolve, 100)); // Short delay
         }
     }
 
-    startWhenReady();
-})();
+    this.textContent = originalButtonText;
+    this.disabled = false;
+    alert(`${removedCount} video(s) removed.`);
+    // Checkboxes for removed videos will be gone. Re-evaluate if needed.
+}
+
+
+function observeDOMChanges() {
+    const targetNode = document.querySelector('ytd-section-list-renderer #contents'); // Main content area for playlist items
+    if (!targetNode) {
+        console.warn("Watch Later Manager: Could not find target node for MutationObserver.");
+        // Try again in a bit, page might still be loading
+        setTimeout(initialize, 1000);
+        return;
+    }
+
+    const config = {childList: true, subtree: true};
+
+    observer = new MutationObserver((mutationsList, obs) => {
+        for (const mutation of mutationsList) {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach(node => {
+                    // Check if the node itself is a video renderer
+                    if (node.nodeType === Node.ELEMENT_NODE && node.matches(VIDEO_ROW_SELECTOR)) {
+                        if (!node.hasAttribute('is-ghost')) {
+                            createCheckbox(node);
+                        }
+                    }
+                    // Check if any children of the added node are video renderers (e.g., if a container was added)
+                    else if (node.nodeType === Node.ELEMENT_NODE) {
+                        node.querySelectorAll(VIDEO_ROW_SELECTOR).forEach(videoEl => {
+                            if (!videoEl.hasAttribute('is-ghost')) {
+                                createCheckbox(videoEl);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+        // It's also possible videos are loaded without major DOM additions but attributes change
+        // e.g. when ghost elements are populated. So, re-check all visible just in case.
+        // addCheckboxesToVisibleVideos(); // Can be a bit heavy, use judiciously or refine logic
+    });
+
+    observer.observe(targetNode, config);
+    console.log("Watch Later Manager: MutationObserver started.");
+}
+
+function initialize() {
+    const firstVideo = document.querySelector(VIDEO_ROW_SELECTOR);
+    // Corrected selector for the playlist header custom element
+    const playlistHeaderElement = document.querySelector('ytd-playlist-header-renderer');
+    const videoListContainer = document.querySelector('#contents.ytd-playlist-video-list-renderer');
+
+    const videosReady = firstVideo || (videoListContainer && videoListContainer.children.length > 0);
+
+    if (videosReady && playlistHeaderElement) { // Check for the new playlistHeaderElement
+        console.log("YouTube Watch Later Manager: Initializing controls and checkboxes.");
+        createControls(playlistHeaderElement); // Pass the found header element to createControls
+        addCheckboxesToVisibleVideos();
+        if (!observer) {
+            observeDOMChanges();
+        }
+    } else {
+        console.log("YouTube Watch Later Manager: Essential elements not ready, retrying...");
+        if (!videosReady) {
+            if (!firstVideo) console.debug("  - Debug: `firstVideo` (ytd-playlist-video-renderer) not found.");
+            if (!videoListContainer) {
+                console.debug("  - Debug: `videoListContainer` (#contents.ytd-playlist-video-list-renderer) not found.");
+            } else if (videoListContainer.children.length === 0) {
+                console.debug("  - Debug: `videoListContainer` found but currently has no children.");
+            }
+        }
+        if (!playlistHeaderElement) { // Updated debug message
+            console.debug("  - Debug: `playlistHeaderElement` (ytd-playlist-header-renderer) not found.");
+        }
+        setTimeout(initialize, 750);
+    }
+}
+// YouTube uses a lot of dynamic loading (SPA).
+// We need to ensure our script runs after the relevant parts of the page are loaded.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize);
+} else {
+    initialize();
+}
+
+// Fallback for SPAs where DOMContentLoaded might not be sufficient for dynamic content
+// or if the user navigates to WL from another YT page.
+// A more robust approach might be to use a MutationObserver on `body` for `ytd-app`
+// and then initialize when the WL page structure is detected.
+// For now, a timeout retry in initialize() helps.
+// Also, since the script is specified for playlist?list=WL, it should re-run on navigation.
+// However, YouTube's SPA behavior can sometimes mean content scripts don't re-evaluate
+// as expected on internal navigations without a full page reload.
+// The `matches` URL in manifest.json is key here.
+
+// Clean up observer on page unload/navigation away (though manifest matching should handle this)
+window.addEventListener('beforeunload', () => {
+    if (observer) {
+        observer.disconnect();
+        console.log("Watch Later Manager: MutationObserver disconnected.");
+    }
+});
