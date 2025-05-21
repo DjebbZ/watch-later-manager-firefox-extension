@@ -1,0 +1,20 @@
+{
+  "manifest_version": 2,
+  "name": "YouTube Watch Later Manager",
+  "version": "1.0",
+  "description": "Manage your YouTube Watch Later playlist with bulk selection and removal",
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png"
+  },
+  "permissions": [
+    "*://*.youtube.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/playlist?list=WL"],
+      "js": ["watch-later-manager.js"],
+      "css": ["watch-later-manager.css"]
+    }
+  ]
+}
