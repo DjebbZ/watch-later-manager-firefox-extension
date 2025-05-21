@@ -7,7 +7,7 @@ removal capabilities.
 
 - Adds checkboxes to each video in the Watch Later playlist
 - Bulk selection of multiple videos
-- Quick removal of selected videos
+- Quick removal of selected videos (one-by-one, sequentially)
 - Seamless integration with YouTube's existing interface
 - Maintains YouTube's visual style using native CSS variables
 
@@ -31,3 +31,7 @@ removal capabilities.
 
 - Firefox browser
 - Access to YouTube Watch Later playlist
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
