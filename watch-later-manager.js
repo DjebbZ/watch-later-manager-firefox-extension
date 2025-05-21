@@ -42,12 +42,25 @@
         controlPanel.appendChild(removeSelectedBtn);
         controlPanel.appendChild(selectedCount);
 
-        // Insert at the top of the playlist
-        const playlistHeader = document.querySelector('ytd-playlist-header-renderer');
-        if (playlistHeader) {
-            playlistHeader.parentNode.insertBefore(controlPanel, playlistHeader.nextSibling);
+        // Insert the control panel on the right side of the page
+        // Target the container that holds the playlist sorting options
+        const actionsContainer = document.querySelector('ytd-playlist-header-renderer #menu-container');
+        if (actionsContainer) {
+            // Create a container that will hold our controls and maintain the layout
+            const controlsContainer = document.createElement('div');
+            controlsContainer.className = 'yt-wl-controls-container';
+            controlsContainer.appendChild(controlPanel);
+
+            // Insert before the sorting options
+            actionsContainer.parentNode.insertBefore(controlsContainer, actionsContainer);
         } else {
-            document.body.insertBefore(controlPanel, document.body.firstChild);
+            // Fallback to the playlist header
+            const playlistHeader = document.querySelector('ytd-playlist-header-renderer');
+            if (playlistHeader) {
+                playlistHeader.appendChild(controlPanel);
+            } else {
+                document.body.insertBefore(controlPanel, document.body.firstChild);
+            }
         }
     }
 
@@ -58,7 +71,10 @@
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = CHECKBOX_CLASS;
-        checkbox.addEventListener('change', function() {
+        checkbox.addEventListener('change', function(e) {
+            // Stop event propagation to prevent triggering video click
+            e.stopPropagation();
+
             const videoId = getVideoIdFromElement(videoElement);
             if (this.checked) {
                 selectedVideos.add(videoId);
@@ -68,14 +84,15 @@
             updateSelectedCount();
         });
 
-        // Insert checkbox
-        const thumbnail = videoElement.querySelector('#thumbnail');
-        if (thumbnail) {
-            thumbnail.style.position = 'relative';
+        // Insert checkbox next to the video title instead of on the thumbnail
+        const videoInfo = videoElement.querySelector('#meta');
+        if (videoInfo) {
             const checkboxContainer = document.createElement('div');
             checkboxContainer.className = 'yt-wl-checkbox-container';
             checkboxContainer.appendChild(checkbox);
-            thumbnail.appendChild(checkboxContainer);
+
+            // Insert at the beginning of the meta information
+            videoInfo.insertBefore(checkboxContainer, videoInfo.firstChild);
         }
     }
 

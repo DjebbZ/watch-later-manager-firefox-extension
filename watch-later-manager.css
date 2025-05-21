@@ -1,12 +1,23 @@
 #yt-wl-manager-controls {
     background-color: #f9f9f9;
     border: 1px solid #ddd;
-    padding: 15px;
+    padding: 10px;
     margin: 10px 0;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 10px;
+    z-index: 10;
+    width: fit-content;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.yt-wl-controls-container {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    padding: 10px 16px;
 }
 
 .yt-wl-btn {
@@ -39,13 +50,9 @@
 }
 
 .yt-wl-checkbox-container {
-    position: absolute;
-    top: 5px;
-    left: 5px;
-    z-index: 9;
-    background-color: rgba(255, 255, 255, 0.8);
-    border-radius: 4px;
-    padding: 3px;
+    display: inline-block;
+    margin-right: 10px;
+    vertical-align: middle;
 }
 
 .yt-wl-checkbox {
