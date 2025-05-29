@@ -23,8 +23,8 @@ A Firefox browser extension that adds bulk selection and removal capabilities to
 1. Navigate to your YouTube Watch Later playlist
 2. Use the checkboxes that appear next to each video to select items
 3. Click "Select All" to choose all visible videos
-4. Click "Remove Selected" to delete the chosen videos from your playlist
-5. Click "Clear Selection" to deselect all videos
+4. Click "Remove Selected from Watch Later" to delete the chosen videos from your playlist
+5. Click "Deselect All" to deselect all videos
 
 ## Requirements
 
