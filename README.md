@@ -12,11 +12,21 @@ A Firefox browser extension that adds bulk selection and removal capabilities to
 
 ## Installation
 
+### Temporary Installation (Development)
+
 1. Download the extension files
 2. Open Firefox and navigate to `about:debugging`
 3. Click "This Firefox"
 4. Click "Load Temporary Add-on"
 5. Select the `manifest.json` file from the extension directory
+
+### Creating a Distribution Package
+
+To create a zip file for distribution (excluding development files):
+
+1. Make the script executable: `chmod +x create-extension-zip.sh`
+2. Run the script: `./create-extension-zip.sh`
+3. The script will create `youtube-watch-later-manager.zip` containing only the necessary files
 
 ## Usage
 
