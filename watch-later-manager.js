@@ -78,32 +78,18 @@ function createControls(playlistHeaderElement) { // Accepts the header element a
 
     // Inject controls into the passed playlistHeaderElement
     if (playlistHeaderElement) {
-        // Try to insert after the #meta element (which usually shows video count, last updated)
-        // or after #primary-info-renderer if that's more suitable/available.
-        const metaElement = playlistHeaderElement.querySelector('#meta.ytd-playlist-header-renderer, #primary-info-renderer');
-
-        if (metaElement && metaElement.parentNode) { // Check parentNode for safety
-            // Insert after the meta/primary-info element
-            if (metaElement.nextSibling) {
-                metaElement.parentNode.insertBefore(controlsContainer, metaElement.nextSibling);
-            } else {
-                metaElement.parentNode.appendChild(controlsContainer);
-            }
-        } else {
-            // Fallback: if a specific inner element isn't found, append to the header as a last resort.
-            // This is often visually acceptable, placing it below other header content.
-            console.warn("Watch Later Manager: Could not find specific anchor (#meta or #primary-info-renderer) in playlist header. Appending controls to header.");
-            playlistHeaderElement.appendChild(controlsContainer);
-        }
+        playlistHeaderElement.prepend(controlsContainer);
     } else {
         // This 'else' branch should ideally not be reached if initialize passes a valid playlistHeaderElement.
-        console.warn("Watch Later Manager: Playlist header element was unexpectedly null in createControls.");
-        const primaryContents = document.querySelector('#primary #contents'); // Fallback from original code
-        if (primaryContents) {
-            primaryContents.prepend(controlsContainer);
-        } else {
-            console.error("Watch Later Manager: Could not find a suitable place to inject controls.");
-        }
+        console.error("Watch Later Manager: Playlist header element was unexpectedly null in createControls. Cannot inject controls.");
+        // Optionally, try a more global fallback if critical, but for this task, we focus on the header.
+        // const primaryContents = document.querySelector('#primary #contents'); 
+        // if (primaryContents) {
+        //     primaryContents.prepend(controlsContainer);
+        //     console.warn("Watch Later Manager: Injected controls into a fallback location (#primary #contents) due to missing playlist header.");
+        // } else {
+        //     console.error("Watch Later Manager: Could not find a suitable place to inject controls even as a fallback.");
+        // }
     }
 }
 async function handleRemoveSelected() {
