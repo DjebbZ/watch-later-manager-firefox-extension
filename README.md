@@ -1,7 +1,6 @@
 # YouTube Watch Later Manager
 
-A Firefox browser extension that enhances the management of YouTube's Watch Later playlist by adding bulk selection and
-removal capabilities.
+A Firefox browser extension that adds bulk selection and removal capabilities to YouTube's Watch Later playlist.
 
 ## Features
 
